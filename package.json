@@ -7,10 +7,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "server": "node --import tsx server.ts",
+    "server:dev": "node --watch --import tsx server.ts",
     "prepublishOnly": "npm run build"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"],
+    "extensions": [
+      "./dist/index.js"
+    ],
     "channel": {
       "id": "rocketchat-webhook",
       "label": "Rocket.Chat (webhook)",
@@ -18,17 +22,34 @@
       "docsPath": "/channels/rocketchat-webhook",
       "blurb": "REST outbound to Rocket.Chat (chat.sendMessage).",
       "order": 71,
-      "aliases": ["rc-hook", "rocketchat-hook"]
+      "aliases": [
+        "rc-hook",
+        "rocketchat-hook"
+      ]
     }
   },
-  "keywords": ["openclaw", "openclaw-plugin", "rocketchat", "webhook", "hooks"],
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "rocketchat",
+    "webhook",
+    "hooks"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=22.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0"
   },
-  "files": ["dist/", "openclaw.plugin.json"]
+  "files": [
+    "dist/",
+    "openclaw.plugin.json"
+  ],
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "hono": "^4.12.9"
+  }
 }
