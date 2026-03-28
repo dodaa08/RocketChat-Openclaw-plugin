@@ -1,0 +1,19 @@
+{
+  "id": "openclaw-rocketchat-webhook",
+  "name": "Rocket.Chat REST outbound",
+  "description": "OpenClaw → Rocket.Chat via chat.sendMessage (channels.rocketchat-webhook)",
+  "version": "0.6.0",
+  "channels": ["rocketchat-webhook"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "enabled": { "type": "boolean", "default": false },
+      "serverUrl": { "type": "string", "description": "Rocket.Chat base URL" },
+      "botUsername": { "type": "string" },
+      "botUserId": { "type": "string", "description": "With botAuthToken for X-User-Id" },
+      "botAuthToken": { "type": "string" },
+      "botPassword": { "type": "string", "description": "Alternative to token: /api/v1/login" }
+    }
+  }
+}
