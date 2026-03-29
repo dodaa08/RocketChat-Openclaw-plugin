@@ -9,6 +9,7 @@
     "dev": "tsc --watch",
     "server": "node --import tsx server.ts",
     "server:dev": "node --watch --import tsx server.ts",
+    "setup": "node --import tsx cli/setup.ts",
     "prepublishOnly": "npm run build"
   },
   "openclaw": {

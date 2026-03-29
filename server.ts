@@ -1,18 +1,38 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// ── Config (hardcoded for now, extract to env later) ────────────────────────
-const RC_URL = "http://127.0.0.1:3000";
-const RC_AUTH_TOKEN = "45f3iIJkx63_r-EY3QsVP4hIF4XJcTQcmRY46bSKakY";
-const RC_USER_ID = "YG3gFbJLbxJtAPtHv";
-const RC_BOT_USERNAME = "OCAgent";
+// ── Config: load from rc-config.json if available, else fall back to env/defaults
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const cfgPath = resolve(__dirname, "rc-config.json");
 
-const OC_URL = "http://127.0.0.1:18789";
-const OC_HOOK_TOKEN = "fde89832b9afbbb3124379f2b134694f5d0219cdac0aa7e1";
+let RC_URL = process.env.RC_URL ?? "http://127.0.0.1:3000";
+let RC_AUTH_TOKEN = process.env.RC_AUTH_TOKEN ?? "";
+let RC_USER_ID = process.env.RC_USER_ID ?? "";
+let RC_BOT_USERNAME = process.env.RC_BOT_USERNAME ?? "OCAgent";
+let DEFAULT_ROOM = process.env.RC_DEFAULT_ROOM ?? "";
+let MIDDLEWARE_PORT = parseInt(process.env.MIDDLEWARE_PORT ?? "3005", 10);
+
+let OC_URL = process.env.OC_URL ?? "http://127.0.0.1:18789";
+let OC_HOOK_TOKEN = process.env.OC_HOOK_TOKEN ?? "";
 const OC_CHANNEL = "rocketchat-webhook";
 
-const DEFAULT_ROOM = "69c672c0a32d7a56a53910d6";
-const MIDDLEWARE_PORT = 3005;
+if (existsSync(cfgPath)) {
+  const cfg = JSON.parse(readFileSync(cfgPath, "utf-8"));
+  RC_URL = cfg.rcUrl ?? RC_URL;
+  RC_AUTH_TOKEN = cfg.bot?.authToken ?? RC_AUTH_TOKEN;
+  RC_USER_ID = cfg.bot?.userId ?? RC_USER_ID;
+  RC_BOT_USERNAME = cfg.bot?.username ?? RC_BOT_USERNAME;
+  DEFAULT_ROOM = cfg.dmRoomId ?? DEFAULT_ROOM;
+  MIDDLEWARE_PORT = cfg.middlewarePort ?? MIDDLEWARE_PORT;
+  OC_URL = cfg.ocUrl ?? OC_URL;
+  OC_HOOK_TOKEN = cfg.ocHookToken ?? OC_HOOK_TOKEN;
+  console.log("[middleware] loaded config from rc-config.json");
+} else if (!RC_AUTH_TOKEN) {
+  console.warn("[middleware] no rc-config.json found and no env vars set. Run: npm run setup");
+}
 const TYPING_INTERVAL_MS = 4000;
 const TYPING_MAX_DURATION_MS = 10 * 60 * 1000; // 10 min cap
 
@@ -188,7 +208,7 @@ app.post("/webhook", async (c) => {
 
   const roomId: string = d.channel_id ?? DEFAULT_ROOM;
   const messageId: string | undefined = d.message_id;
-  const sessionKey = `hook:rc:v7:${roomId}`;
+  const sessionKey = `hook:rc:v8:${roomId}`;
 
   // 1. React with hourglass + typing indicator immediately
   if (messageId) await rcReact(messageId, "hourglass_flowing_sand");
