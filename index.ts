@@ -3,19 +3,25 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const cfgPath = resolve(__dirname, "rc-config.json");
+const cfgPath = resolve(__dirname, "..", "rc-config.json");
+const cfgPathAlt = resolve(__dirname, "rc-config.json");
+
 
 let RC_URL = "http://127.0.0.1:3000";
 let RC_AUTH_TOKEN = "";
 let RC_USER_ID = "";
 let DEFAULT_ROOM = "";
 
-if (existsSync(cfgPath)) {
-  const cfg = JSON.parse(readFileSync(cfgPath, "utf-8"));
+const resolvedCfg = existsSync(cfgPath) ? cfgPath : existsSync(cfgPathAlt) ? cfgPathAlt : null;
+if (resolvedCfg) {
+  const cfg = JSON.parse(readFileSync(resolvedCfg, "utf-8"));
   RC_URL = cfg.rcUrl ?? RC_URL;
   RC_AUTH_TOKEN = cfg.bot?.authToken ?? RC_AUTH_TOKEN;
   RC_USER_ID = cfg.bot?.userId ?? RC_USER_ID;
   DEFAULT_ROOM = cfg.dmRoomId ?? DEFAULT_ROOM;
+  console.log(`[plugin] loaded config from ${resolvedCfg}`);
+} else {
+  console.warn("[plugin] rc-config.json not found -- credentials will be empty");
 }
 
 async function rcSend(rid: string, msg: string): Promise<{ ok: boolean; body: string }> {

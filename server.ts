@@ -43,6 +43,9 @@ interface ActiveRun {
   messageId?: string;
 }
 const activeRuns = new Map<string, ActiveRun>();
+/** runId -> status line message _id (delete when run completes) */
+const processingStatusByRunId = new Map<string, string>();
+const STATUS_LINE_TTL_MS = 15 * 60 * 1000;
 
 // ── RC helpers ──────────────────────────────────────────────────────────────
 
@@ -85,7 +88,57 @@ function stopTypingKeepalive(runId: string, completed = false): void {
     rcUnreact(entry.messageId, "brain");
     rcReact(entry.messageId, "white_check_mark");
   }
+  if (completed) {
+    const statusId = processingStatusByRunId.get(runId);
+    if (statusId) {
+      void rcDeleteMessage(entry.roomId, statusId);
+      processingStatusByRunId.delete(runId);
+    }
+  }
   activeRuns.delete(runId);
+}
+
+async function rcSendMessage(roomId: string, msg: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${RC_URL}/api/v1/chat.sendMessage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Auth-Token": RC_AUTH_TOKEN,
+        "X-User-Id": RC_USER_ID,
+      },
+      body: JSON.stringify({ message: { rid: roomId, msg } }),
+    });
+    const json = (await res.json()) as { message?: { _id?: string } };
+    return json.message?._id;
+  } catch (e) {
+    console.error("[middleware] sendMessage failed:", e);
+    return undefined;
+  }
+}
+
+async function rcDeleteMessage(roomId: string, msgId: string): Promise<void> {
+  try {
+    await fetch(`${RC_URL}/api/v1/chat.delete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Auth-Token": RC_AUTH_TOKEN,
+        "X-User-Id": RC_USER_ID,
+      },
+      body: JSON.stringify({ roomId, msgId }),
+    });
+  } catch (e) {
+    console.error("[middleware] deleteMessage failed:", e);
+  }
+}
+
+function scheduleStatusLineCleanup(runId: string, roomId: string, statusMsgId: string): void {
+  setTimeout(() => {
+    if (!processingStatusByRunId.has(runId)) return;
+    processingStatusByRunId.delete(runId);
+    void rcDeleteMessage(roomId, statusMsgId);
+  }, STATUS_LINE_TTL_MS);
 }
 
 async function rcReact(messageId: string, emoji: string): Promise<void> {
@@ -147,7 +200,7 @@ interface OCHookPayload {
   deliver: boolean;
   channel: string;
   to: string;
-  timeoutSeconds: number;
+  timeoutSeconds?: number;
 }
 
 async function forwardToOpenClaw(
@@ -208,7 +261,7 @@ app.post("/webhook", async (c) => {
 
   const roomId: string = d.channel_id ?? DEFAULT_ROOM;
   const messageId: string | undefined = d.message_id;
-  const sessionKey = `hook:rc:v8:${roomId}`;
+  const sessionKey = `hook:rc:v13:${roomId}`;
 
   // 1. React with hourglass + typing indicator immediately
   if (messageId) await rcReact(messageId, "hourglass_flowing_sand");
@@ -253,8 +306,14 @@ app.post("/webhook", async (c) => {
     await rcReact(messageId, "brain");
   }
 
-  // Start keepalive with the real runId (carries messageId for completion emoji)
+  // Status line in chat (bot): visible "processing" UX alongside emoji + typing
   if (result.runId) {
+    const statusText = "_🦞 OpenClaw is processing your message…_";
+    const statusMsgId = await rcSendMessage(roomId, statusText);
+    if (statusMsgId) {
+      processingStatusByRunId.set(result.runId, statusMsgId);
+      scheduleStatusLineCleanup(result.runId, roomId, statusMsgId);
+    }
     startTypingKeepalive(roomId, result.runId, messageId);
     console.log(`[middleware] run ${result.runId} started, typing keepalive active`);
   }
