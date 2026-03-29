@@ -1,5 +1,5 @@
 const RC_URL = "http://127.0.0.1:3000";
-const RC_AUTH_TOKEN = "3deJBvCdZbp0JgBaqVnt7Px-DiVJt2sSMrTC_DV-JOl";
+const RC_AUTH_TOKEN = "45f3iIJkx63_r-EY3QsVP4hIF4XJcTQcmRY46bSKakY";
 const RC_USER_ID = "YG3gFbJLbxJtAPtHv";
 
 const DEFAULT_ROOM = "69c672c0a32d7a56a53910d6"

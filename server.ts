@@ -3,7 +3,7 @@ import { serve } from "@hono/node-server";
 
 // ── Config (hardcoded for now, extract to env later) ────────────────────────
 const RC_URL = "http://127.0.0.1:3000";
-const RC_AUTH_TOKEN = "3deJBvCdZbp0JgBaqVnt7Px-DiVJt2sSMrTC_DV-JOl";
+const RC_AUTH_TOKEN = "45f3iIJkx63_r-EY3QsVP4hIF4XJcTQcmRY46bSKakY";
 const RC_USER_ID = "YG3gFbJLbxJtAPtHv";
 const RC_BOT_USERNAME = "OCAgent";
 
@@ -134,7 +134,7 @@ async function forwardToOpenClaw(
   payload: OCHookPayload
 ): Promise<{ ok: boolean; runId?: string; error?: string }> {
   try {
-    const res = await fetch(`${OC_URL}/hooks/rocketchat`, {
+    const res = await fetch(`${OC_URL}/hooks/agent`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -188,7 +188,7 @@ app.post("/webhook", async (c) => {
 
   const roomId: string = d.channel_id ?? DEFAULT_ROOM;
   const messageId: string | undefined = d.message_id;
-  const sessionKey = `hook:rc:v6:${roomId}`;
+  const sessionKey = `hook:rc:v7:${roomId}`;
 
   // 1. React with hourglass + typing indicator immediately
   if (messageId) await rcReact(messageId, "hourglass_flowing_sand");
