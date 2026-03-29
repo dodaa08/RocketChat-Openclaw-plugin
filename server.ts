@@ -189,72 +189,6 @@ async function rcPostMessage(roomId: string, text: string): Promise<void> {
   }
 }
 
-/** Rocket.Chat `rid` must be a room document _id (24 hex chars), not a channel name like `general`. */
-function isMongoRoomId(s: string): boolean {
-  return /^[a-f0-9]{24}$/i.test(s.trim());
-}
-
-/**
- * Resolve a channel/group name (e.g. "general") to a room _id via REST.
- * Tries public channels, then private groups.
- */
-async function rcResolveRoomNameToId(roomName: string): Promise<string | undefined> {
-  const name = roomName.trim();
-  if (!name) return undefined;
-  const enc = encodeURIComponent(name);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-Auth-Token": RC_AUTH_TOKEN,
-    "X-User-Id": RC_USER_ID,
-  };
-  for (const path of [
-    `${RC_URL}/api/v1/channels.info?roomName=${enc}`,
-    `${RC_URL}/api/v1/groups.info?roomName=${enc}`,
-  ] as const) {
-    try {
-      const res = await fetch(path, { headers });
-      const json = (await res.json()) as {
-        success?: boolean;
-        channel?: { _id?: string };
-        group?: { _id?: string };
-      };
-      const id = json.channel?._id ?? json.group?._id;
-      if (json.success && id) {
-        console.log(`[middleware] resolved room name "${name}" -> ${id}`);
-        return id;
-      }
-    } catch {
-      /* try next */
-    }
-  }
-  console.warn(`[middleware] could not resolve room name "${name}" to a room id`);
-  return undefined;
-}
-
-/**
- * Outgoing webhooks usually send `channel_id` (room _id). Some scripts or edge
- * cases send the slug/name in `channel_id` or only `channel_name` — OpenClaw
- * delivery needs the real _id or Rocket.Chat rejects the target.
- */
-async function roomIdFromOutgoingWebhook(d: Record<string, unknown>): Promise<string> {
-  const rawId = (d.channel_id ?? d.room_id ?? d.rid) as string | undefined;
-  const channelName = (d.channel_name ?? d.room_name) as string | undefined;
-
-  if (rawId && typeof rawId === "string") {
-    const t = rawId.trim();
-    if (isMongoRoomId(t)) return t;
-    const resolved = await rcResolveRoomNameToId(t);
-    if (resolved) return resolved;
-  }
-
-  if (channelName && typeof channelName === "string") {
-    const resolved = await rcResolveRoomNameToId(channelName);
-    if (resolved) return resolved;
-  }
-
-  return DEFAULT_ROOM;
-}
-
 // ── OC forward ──────────────────────────────────────────────────────────────
 
 interface OCHookPayload {
@@ -302,8 +236,8 @@ app.get("/health", (c) => c.json({ status: "ok", uptime: process.uptime() }));
  * POST /webhook  --  entry point for RC outgoing webhook.
  *
  * Accepts the raw RC outgoing-webhook payload (the fields RC sends by default:
- * token, bot, channel_id, channel_name, user_id, user_name, text,
- * trigger_word, timestamp, etc.)
+ * token, bot, channel_id (room _id), room_id / rid as fallbacks, user_id,
+ * user_name, text, trigger_word, timestamp, etc.)
  *
  * The RC script can be a simple passthrough -- all smart logic lives here.
  */
@@ -325,13 +259,10 @@ app.post("/webhook", async (c) => {
     return c.json({ ok: true, skipped: true, reason: "empty message" });
   }
 
-  const roomId = await roomIdFromOutgoingWebhook(d as Record<string, unknown>);
-  if (!roomId) {
-    console.error("[middleware] no room id: set dmRoomId in rc-config or fix webhook payload");
-    return c.json({ ok: false, error: "no Rocket.Chat room id (channel_id / channel_name)" }, 400);
-  }
+  // Room _id for RC API + OpenClaw `to` (sync only; no name→id resolution here).
+  const roomId: string = (d.channel_id ?? d.room_id ?? d.rid ?? DEFAULT_ROOM) as string;
   const messageId: string | undefined = d.message_id;
-  const sessionKey = `hook:rc:v14:${roomId}`;
+  const sessionKey = `hook:rc:v15:${roomId}`;
 
   // 1. React with hourglass + typing indicator immediately
   if (messageId) await rcReact(messageId, "hourglass_flowing_sand");
