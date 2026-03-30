@@ -84,7 +84,7 @@ function updateOcChannelConfig(bot: { userId: string; authToken: string; usernam
   writeOcConfig(cfg);
 }
 
-// ── Main setup ──────────────────────────────────────────────
+// ── Main setup
 
 async function main() {
   console.log("\n  🦞 OpenClaw Rocket.Chat Plugin Setup\n");

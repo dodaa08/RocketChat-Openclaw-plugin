@@ -4,7 +4,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// ── Config: load from rc-config.json if available, else fall back to env/defaults
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const cfgPath = resolve(__dirname, "rc-config.json");
 
@@ -34,20 +33,16 @@ if (existsSync(cfgPath)) {
   console.warn("[middleware] no rc-config.json found and no env vars set. Run: npm run setup");
 }
 const TYPING_INTERVAL_MS = 4000;
-const TYPING_MAX_DURATION_MS = 10 * 60 * 1000; // 10 min cap
+const TYPING_MAX_DURATION_MS = 10 * 60 * 1000;
 
-// ── Track active runs so we can stop typing on completion ───────────────────
 interface ActiveRun {
   timer: ReturnType<typeof setInterval>;
   roomId: string;
   messageId?: string;
 }
 const activeRuns = new Map<string, ActiveRun>();
-/** runId -> status line message _id (delete when run completes) */
 const processingStatusByRunId = new Map<string, string>();
 const STATUS_LINE_TTL_MS = 15 * 60 * 1000;
-
-// ── RC helpers ──────────────────────────────────────────────────────────────
 
 async function rcSendTyping(roomId: string, typing: boolean): Promise<void> {
   const payload = JSON.stringify({
@@ -189,8 +184,6 @@ async function rcPostMessage(roomId: string, text: string): Promise<void> {
   }
 }
 
-// ── OC forward ──────────────────────────────────────────────────────────────
-
 interface OCHookPayload {
   message: string;
   name: string;
@@ -226,27 +219,14 @@ async function forwardToOpenClaw(
   }
 }
 
-// ── Hono app ────────────────────────────────────────────────────────────────
-
 const app = new Hono();
 
 app.get("/health", (c) => c.json({ status: "ok", uptime: process.uptime() }));
 
-/**
- * POST /webhook  --  entry point for RC outgoing webhook.
- *
- * Accepts the raw RC outgoing-webhook payload (the fields RC sends by default:
- * token, bot, channel_id (room _id), room_id / rid as fallbacks, user_id,
- * user_name, text, trigger_word, timestamp, etc.)
- *
- * The RC script can be a simple passthrough -- all smart logic lives here.
- */
 app.post("/webhook", async (c) => {
   const body = await c.req.json();
   console.log("[middleware] incoming webhook:", JSON.stringify(body).slice(0, 300));
 
-  // RC sends either the raw payload directly or nested under `data` if the
-  // RC script wraps it. Handle both.
   const d = body.data ?? body;
 
   const triggerWord = (d.trigger_word ?? "").trim();
@@ -259,16 +239,13 @@ app.post("/webhook", async (c) => {
     return c.json({ ok: true, skipped: true, reason: "empty message" });
   }
 
-  // Room _id for RC API + OpenClaw `to` (sync only; no name→id resolution here).
   const roomId: string = (d.channel_id ?? d.room_id ?? d.rid ?? DEFAULT_ROOM) as string;
   const messageId: string | undefined = d.message_id;
-  const sessionKey = `hook:rc:v15:${roomId}`;
+  const sessionKey = `hook:rc:v16:${roomId}`;
 
-  // 1. React with hourglass + typing indicator immediately
   if (messageId) await rcReact(messageId, "hourglass_flowing_sand");
   startTypingKeepalive(roomId, `pending-${roomId}-${Date.now()}`, messageId);
 
-  // 2. Forward to OC
   const ocPayload: OCHookPayload = {
     message: cleanedText,
     name: "Rocket.Chat",
@@ -284,7 +261,6 @@ app.post("/webhook", async (c) => {
   console.log("[middleware] forwarding to OC:", JSON.stringify(ocPayload).slice(0, 300));
   const result = await forwardToOpenClaw(ocPayload);
 
-  // Clean up the temporary typing run and start a proper one keyed by runId
   const pendingKey = [...activeRuns.keys()].find((k) => k.startsWith(`pending-${roomId}`));
   if (pendingKey) stopTypingKeepalive(pendingKey);
 
@@ -301,13 +277,11 @@ app.post("/webhook", async (c) => {
     return c.json({ ok: false, error: result.error }, 502);
   }
 
-  // Swap hourglass -> brain to show OC is thinking
   if (messageId) {
     await rcUnreact(messageId, "hourglass_flowing_sand");
     await rcReact(messageId, "brain");
   }
 
-  // Status line in chat (bot): visible "processing" UX alongside emoji + typing
   if (result.runId) {
     const statusText = "_🦞 OpenClaw is processing your message…_";
     const statusMsgId = await rcSendMessage(roomId, statusText);
@@ -322,18 +296,12 @@ app.post("/webhook", async (c) => {
   return c.json({ ok: true, runId: result.runId });
 });
 
-/**
- * POST /run/:runId/complete  --  optional callback to stop typing.
- * OC or an external watcher can hit this when the run finishes.
- */
 app.post("/run/:runId/complete", async (c) => {
   const { runId } = c.req.param();
   stopTypingKeepalive(runId, true);
   console.log(`[middleware] run ${runId} marked complete`);
   return c.json({ ok: true });
 });
-
-// ── Start ───────────────────────────────────────────────────────────────────
 
 console.log(`[middleware] starting on port ${MIDDLEWARE_PORT}...`);
 serve({ fetch: app.fetch, port: MIDDLEWARE_PORT }, (info) => {
