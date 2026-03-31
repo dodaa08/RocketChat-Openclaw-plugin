@@ -2,8 +2,6 @@
 
 This project connects **Rocket.Chat** to **OpenClaw** using two pieces: a **middleware HTTP server** that receives Rocket.Chat webhooks and forwards them to the OpenClaw Gateway, and an **OpenClaw channel plugin** that sends assistant replies back into Rocket.Chat over the REST API.
 
-The approach is explicit and narrow: inbound traffic is HTTP webhook JSON; outbound traffic uses Rocket.Chat `chat.sendMessage` with the bot credentials from configuration. OpenClaw remains the brain; this repo does not embed model logic in the middleware.
-
 ---
 
 ## Demo
