@@ -241,7 +241,7 @@ app.post("/webhook", async (c) => {
 
   const roomId: string = (d.channel_id ?? d.room_id ?? d.rid ?? DEFAULT_ROOM) as string;
   const messageId: string | undefined = d.message_id;
-  const sessionKey = `hook:rc:v16:${roomId}`;
+  const sessionKey = `hook:rc:v28:${roomId}`;
 
   if (messageId) await rcReact(messageId, "hourglass_flowing_sand");
   startTypingKeepalive(roomId, `pending-${roomId}-${Date.now()}`, messageId);
