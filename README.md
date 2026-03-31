@@ -8,12 +8,34 @@ The approach is explicit and narrow: inbound traffic is HTTP webhook JSON; outbo
 
 ## Demo
 
-<!-- Add an embedded video or link when available. -->
+**Onboarding**
 
-| | |
-| --- | --- |
-| **Video** | _Link or embed placeholder_ |
-| **What it shows** | _Short description of the walkthrough_ |
+https://github.com/user-attachments/assets/7795e906-71c2-4272-ad1a-f5a132c4e49e
+
+
+
+
+
+**Sample async Task**
+
+
+
+https://github.com/user-attachments/assets/e5fb78ef-f57a-446b-8d63-c7be6c97e51c
+
+
+
+
+
+
+**Crons**
+
+
+
+https://github.com/user-attachments/assets/031ff478-4afd-4a13-8517-46b2e65faa4d
+
+
+
+
 
 ---
 
