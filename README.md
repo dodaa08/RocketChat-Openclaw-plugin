@@ -106,16 +106,6 @@ Node **22+**.
 
 ---
 
-## Demos
-
-| Topic | Link |
-| --- | --- |
-| Onboarding | [video](https://github.com/user-attachments/assets/7795e906-71c2-4272-ad1a-f5a132c4e49e) |
-| Sample async task | [video](https://github.com/user-attachments/assets/e5fb78ef-f57a-446b-8d63-c7be6c97e51c) |
-| Crons | [video](https://github.com/user-attachments/assets/a2c4744d-2962-4fa3-9c65-21001bf2a611) |
-
----
-
 ## Repository map
 
 | Path | Role |
