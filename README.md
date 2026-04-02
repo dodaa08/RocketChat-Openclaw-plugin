@@ -127,14 +127,3 @@ Node **22+**.
 | `openclaw.plugin.json` | Plugin metadata. |
 
 ---
-
-## More docs
-
-- OpenClaw Gateway hooks and channels: upstream OpenClaw documentation.
-- Rocket.Chat outgoing webhooks and REST API: Rocket.Chat docs.
-
----
-
-## License
-
-MIT
