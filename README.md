@@ -6,6 +6,7 @@ Bridge **Rocket.Chat** and **OpenClaw**: users talk to your bot in channels or D
 ---
 
 ## Demo
+---
 
 **Onboarding**
 
