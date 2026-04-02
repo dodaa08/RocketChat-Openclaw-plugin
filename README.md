@@ -1,131 +1,109 @@
-
 # OpenClaw Rocket.Chat Webhook
 
-This project connects **Rocket.Chat** to **OpenClaw** using two pieces: a **middleware HTTP server** that receives Rocket.Chat webhooks and forwards them to the OpenClaw Gateway, and an **OpenClaw channel plugin** that sends assistant replies back into Rocket.Chat over the REST API.
+Bridge **Rocket.Chat** and **OpenClaw**: users talk to your bot in channels or DMs; OpenClaw runs the agent and replies through Rocket.Chat. This repo does **not** run models—it wires **Rocket.Chat webhooks → OpenClaw** and **OpenClaw → Rocket.Chat REST**.
 
 ---
 
-## Demo
+## What it’s for
 
-**Onboarding**
-
-https://github.com/user-attachments/assets/7795e906-71c2-4272-ad1a-f5a132c4e49e
-
-
-
-
-
-**Sample async Task**
-
-
-
-https://github.com/user-attachments/assets/e5fb78ef-f57a-446b-8d63-c7be6c97e51c
-
-
-
-
-
-
-**Crons**
-
-
-
-https://github.com/user-attachments/assets/a2c4744d-2962-4fa3-9c65-21001bf2a611
-
-
-
+- **Chat with an OpenClaw agent** from Rocket.Chat (same room = same conversation context via a stable `sessionKey` per room).
+- **Anything OpenClaw can do** with delivery to a channel: hook replies, scheduled/cron runs, async tasks—if OpenClaw targets channel `rocketchat-webhook` and a room id, the plugin posts the answer into that room.
 
 ---
 
-## Repository layout
+## How it fits together
 
-| Path | Role |
-| --- | --- |
-| `index.ts` | OpenClaw channel plugin: registers `rocketchat-webhook`, implements outbound delivery. |
-| `server.ts` | Standalone middleware: Rocket.Chat webhook in, OpenClaw hook out; typing and completion callbacks. |
-| `cli/setup.ts` | Interactive setup: Rocket.Chat bot, outgoing integration, `rc-config.json`, and OpenClaw `openclaw.json` merge. |
-| `cli/rc-api.ts` | Rocket.Chat REST helpers used by setup (login, webhooks, DMs, messages). |
-| `rc-config.json` | Generated local config (not committed): Rocket.Chat URL, bot tokens, webhook URL, DM room id, OpenClaw URL and hook token. |
-| `openclaw.plugin.json` | Plugin metadata for packaging. |
+| Piece | Runs where | Role |
+| --- | --- | --- |
+| **Middleware** (`server.ts`) | Separate Node process (`npm run server`) | Receives Rocket.Chat outgoing webhooks, calls OpenClaw `POST /hooks/agent`, optional typing/status UI, cleanup on `POST /run/:runId/complete`. |
+| **Channel plugin** (`index.ts`) | Inside the OpenClaw Gateway process | Sends assistant text to Rocket.Chat via `POST /api/v1/chat.sendMessage`. |
 
----
-
-## Inbound path (Rocket.Chat to OpenClaw)
-
-Flow:
-
-1. Rocket.Chat fires an **outgoing webhook** (integration) to your middleware URL, typically `http://<host>:<port>/webhook`.
-2. **`server.ts`** handles `POST /webhook`. It parses the payload (supports `body.data` or top-level fields), strips an optional trigger word prefix, and reads the user text and room identifiers.
-3. It builds an OpenClaw **`/hooks/agent`** payload: user message, stable **`sessionKey`** (scoped to this Rocket.Chat room so context stays per-room), **`channel: rocketchat-webhook`**, **`to: <room id>`**, **`deliver: true`**, and posts to **`OC_URL`** with the configured bearer token.
-4. On success, OpenClaw returns a **`runId`**. The middleware may show typing indicators, react to the user message, post a short status line, and start a typing keepalive tied to that run.
-5. When the run finishes, OpenClaw (or your wiring) should call **`POST /run/:runId/complete`** so the middleware can stop typing and clean up reactions and status messages.
-
-**`server.ts` endpoints**
-
-- **`GET /health`** — Liveness JSON (`status`, `uptime`).
-- **`POST /webhook`** — Rocket.Chat outbound integration; forwards to OpenClaw as above. Empty text after cleaning is skipped.
-- **`POST /run/:runId/complete`** — Signals run completion for the given `runId`; stops typing keepalive and marks the run complete for UI cleanup.
-
-Configuration is loaded from **`rc-config.json`** next to the project (or environment variables as fallbacks): Rocket.Chat base URL, bot `X-Auth-Token` / `X-User-Id`, default room, middleware port, OpenClaw base URL, and hook token.
+**Inbound:** Rocket.Chat → middleware → OpenClaw.  
+**Outbound:** OpenClaw → plugin → Rocket.Chat.
 
 ---
 
-## Outbound path (OpenClaw to Rocket.Chat)
+## Middleware endpoints (`server.ts`)
 
-Flow:
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Liveness (`status`, `uptime`). |
+| `POST` | `/webhook` | Rocket.Chat outgoing integration URL. Parses `body.data` or top-level fields, optional trigger-word strip, forwards to OpenClaw. Empty text after cleaning is skipped. |
+| `POST` | `/run/:runId/complete` | Call when an agent run finishes so typing keepalive and related UI can stop. |
 
-1. OpenClaw decides to send text to the **`rocketchat-webhook`** channel (for example after a hook run, or from a cron job configured with delivery to this channel and a room id).
-2. The Gateway invokes the plugin registered in **`index.ts`**, which implements **`outbound.sendText`** (and **`sendMedia`** as a text-capable path).
-3. The plugin resolves the target room: OpenClaw passes **`to`** when known; otherwise it falls back to **`dmRoomId`** from **`rc-config.json`** (loaded from the parent directory or next to the built plugin).
-4. Messages are sent with **`POST /api/v1/chat.sendMessage`** using the bot credentials from config.
+OpenClaw receives **`POST {OC_URL}/hooks/agent`** with bearer `OC_HOOK_TOKEN` (from config). On success, OpenClaw returns a **`runId`** used for completion callbacks.
 
-So: **inbound** is `server.ts` only; **outbound** is **`index.ts`** inside the OpenClaw process. Both read Rocket.Chat settings from **`rc-config.json`** (plugin also checks a sibling path for packaged installs).
+---
+
+## Configuration
+
+**`rc-config.json`** (generated by `npm run setup`, not committed) holds the glue:
+
+- Rocket.Chat: `rcUrl`, bot `userId` / `authToken`, optional `dmRoomId` (default outbound room when `to` is missing).
+- Middleware: `middlewarePort`, `webhook.url` (must match Rocket.Chat integration URL).
+- OpenClaw: `ocUrl`, `ocHookToken` (must match Gateway **`hooks.token`** in `~/.openclaw/openclaw.json`).
+
+Environment overrides exist (e.g. `RC_URL`, `OC_URL`, `OC_HOOK_TOKEN`, `MIDDLEWARE_PORT`)—see `server.ts`.
+
+**OpenClaw** (`~/.openclaw/openclaw.json`): the setup CLI merges **`channels.rocketchat-webhook`** (enabled, `serverUrl`, bot credentials), **`plugins.load.paths`** (this repo), and **`plugins.allow`**. Restart OpenClaw after changes.
 
 ---
 
 ## CLI setup
-
-Run from the project root:
 
 ```bash
 npm install
 npm run setup
 ```
 
-**`npm run setup`** walks through:
+Prompts: Rocket.Chat URL + admin login → bot user (create or reuse) + bot token → outgoing webhook URL (your middleware `/webhook`) → optional welcome DM → writes **`rc-config.json`** and updates **`openclaw.json`** as above. If **`hooks.token`** is missing in `openclaw.json`, the middleware cannot authenticate to OpenClaw—fix that before relying on `/webhook`.
 
-- Rocket.Chat URL and admin login.
-- Bot user creation or selection and bot login token.
-- Outgoing integration (webhook) pointing at your middleware URL.
-- Optional welcome DM and persistence of **`rc-config.json`** in the project directory.
-- Merge into **`~/.openclaw/openclaw.json`**: enables channel **`rocketchat-webhook`**, sets `serverUrl`, bot user id and token, registers this plugin path under **`plugins.load.paths`**, and adds the plugin id to **`plugins.allow`**.
-
-After setup, restart OpenClaw, then start the middleware:
+Then restart OpenClaw and start the middleware:
 
 ```bash
 npm run server
 ```
 
-Ensure Rocket.Chat’s integration URL matches **`rc-config.json`** `webhook.url` and that the OpenClaw Gateway is reachable at the configured **`ocUrl`** with a valid **`hooks.token`**.
-
 ---
 
-## Build and development
+## Build
 
 ```bash
-npm run build    # compile TypeScript to dist/ (plugin entry is dist/index.js)
-npm run dev      # watch mode for the plugin
-npm run server   # run middleware with tsx
+npm run build    # dist/index.js — plugin entry for OpenClaw
+npm run dev      # watch plugin
+npm run server   # middleware (tsx)
 ```
 
-Node 22+ is required.
+Node **22+**.
 
 ---
 
-## Related documentation
+## Demos
 
-- OpenClaw Gateway hooks and channels follow upstream OpenClaw documentation.
-- Rocket.Chat outgoing webhooks and REST API are documented in Rocket.Chat’s own docs.
+| Topic | Link |
+| --- | --- |
+| Onboarding | [video](https://github.com/user-attachments/assets/7795e906-71c2-4272-ad1a-f5a132c4e49e) |
+| Sample async task | [video](https://github.com/user-attachments/assets/e5fb78ef-f57a-446b-8d63-c7be6c97e51c) |
+| Crons | [video](https://github.com/user-attachments/assets/a2c4744d-2962-4fa3-9c65-21001bf2a611) |
+
+---
+
+## Repository map
+
+| Path | Role |
+| --- | --- |
+| `index.ts` | OpenClaw channel `rocketchat-webhook`: `outbound.sendText` / `sendMedia` → `chat.sendMessage`. |
+| `server.ts` | Middleware: webhook in, `/hooks/agent` out, `/run/:id/complete`. |
+| `cli/setup.ts` | Interactive setup and `openclaw.json` merge. |
+| `cli/rc-api.ts` | Rocket.Chat REST helpers for setup. |
+| `openclaw.plugin.json` | Plugin metadata. |
+
+---
+
+## More docs
+
+- OpenClaw Gateway hooks and channels: upstream OpenClaw documentation.
+- Rocket.Chat outgoing webhooks and REST API: Rocket.Chat docs.
 
 ---
 
