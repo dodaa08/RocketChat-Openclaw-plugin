@@ -1,3 +1,5 @@
+
+https://github.com/user-attachments/assets/14c7dd0c-0d72-4e34-8554-ba1ff1f4ab39
 # OpenClaw Rocket.Chat Webhook
 
 This project connects **Rocket.Chat** to **OpenClaw** using two pieces: a **middleware HTTP server** that receives Rocket.Chat webhooks and forwards them to the OpenClaw Gateway, and an **OpenClaw channel plugin** that sends assistant replies back into Rocket.Chat over the REST API.
@@ -29,8 +31,7 @@ https://github.com/user-attachments/assets/e5fb78ef-f57a-446b-8d63-c7be6c97e51c
 
 
 
-https://github.com/user-attachments/assets/031ff478-4afd-4a13-8517-46b2e65faa4d
-
+https://github.com/user-attachments/assets/a2c4744d-2962-4fa3-9c65-21001bf2a611
 
 
 
