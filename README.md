@@ -1,6 +1,6 @@
 # OpenClaw Rocket.Chat Webhook
 
-Bridge **Rocket.Chat** and **OpenClaw**: users talk to your bot in channels or DMs; OpenClaw runs the agent and replies through Rocket.Chat. This repo does **not** run models—it wires **Rocket.Chat webhooks → OpenClaw** and **OpenClaw → Rocket.Chat REST**.
+Bridge **Rocket.Chat** and **OpenClaw**: users talk to your bot in channels or DMs; OpenClaw runs the agent and replies through Rocket.Chat.
 
 
 ---
@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/e5fb78ef-f57a-446b-8d63-c7be6c97e51c
 
 
 
-**Crons**
+**Crons Fully Working now**
 
 
 https://github.com/user-attachments/assets/a2c4744d-2962-4fa3-9c65-21001bf2a611
